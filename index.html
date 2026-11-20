@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="command">$ nuorder color-lookup <span>--smart --sense</span></div>
 
       <input id="lookupInput" class="input" autocomplete="off"
-        placeholder="paste raw vendor color (e.g., BLK, DK NV, 2599 AMBER M BR, cobblestone- dm - 021)"
+        placeholder="paste raw vendor color (e.g., WASHED BLACK, WASHED TIGER CAMO, DK NV)"
         aria-label="Raw vendor color">
 
       <div class="modebar">
@@ -112,8 +112,8 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
     <section class="view" id="batch">
       <div class="command">$ nuorder color-lookup <span>--batch &lt; colors.txt</span></div>
       <textarea id="batchInput" class="input" placeholder="Paste raw supplier strings (one per line)...
-blac
-wht
+WASHED BLACK
+WASHED TIGER CAMO
 DK NV
 2599 AMBER M BR
 cobblestone- dm - 021
@@ -241,6 +241,7 @@ const COLOR_MAP = {
   'PSTL':'Pastel',
   'DST':'Dusty',
   'HTR':'Heather',
+  'WSH':'Washed',
 
   // Multilingual vendor terms
   'ROSA':'Pink','NERO':'Black','ARGENTO':'Silver','BIANCO':'White','MAROON':'Maroon',
@@ -298,7 +299,10 @@ const FAMILY_RULES = [
   ['chartreuse','Green'],['sage','Green'],['mint','Green'],['teal','Green'],
   ['purple','Purple'],['violet','Purple'],['lilac','Purple'],['lavender','Purple'],
   ['plum','Purple'],['mauve','Purple'],['eggplant','Purple'],['aubergine','Purple'],
-  ['orchid','Purple'],['orange','Orange']
+  ['orchid','Purple'],['orange','Orange'],
+  ['tiger camo','Multi'],['camo','Multi'],['camouflage','Multi'],
+  ['leopard','Multi'],['zebra','Multi'],['floral','Multi'],
+  ['plaid','Multi'],['stripe','Multi'],['tie dye','Multi']
 ];
 
 /* Semantic fashion/vendor vocabulary. Each entry has a canonical customer
@@ -383,7 +387,7 @@ const SENSE_MAP = [
   {terms:['sienna'], name:'Sienna', family:'Brown', score:97},
   {terms:['brown'], name:'Brown', family:'Brown', score:96},
 
-  {terms:['cobblestone'], name:'Cobblestone', family:'Grey', score:97},
+  {terms:['cobblestone','cobble stone'], name:'Cobblestone', family:'Grey', score:97},
   {terms:['stone grey','stone gray','stone'], name:'Stone', family:'Grey', score:97},
   {terms:['slate'], name:'Slate', family:'Grey', score:97},
   {terms:['pebble'], name:'Pebble', family:'Grey', score:97},
@@ -423,7 +427,16 @@ const SENSE_MAP = [
   {terms:['viola','violet','purple'], name:'Purple', family:'Purple', score:96},
   {terms:['lilla','lilac'], name:'Lilac', family:'Purple', score:96},
   {terms:['lavender'], name:'Lavender', family:'Purple', score:96},
-  {terms:['beige'], name:'Beige', family:'Beige', score:96}
+  {terms:['beige'], name:'Beige', family:'Beige', score:96},
+
+  {terms:['tiger camo'], name:'Tiger Camo', family:'Multi', score:97},
+  {terms:['camo','camouflage'], name:'Camo', family:'Multi', score:96},
+  {terms:['leopard'], name:'Leopard', family:'Multi', score:96},
+  {terms:['zebra'], name:'Zebra', family:'Multi', score:96},
+  {terms:['floral'], name:'Floral', family:'Multi', score:96},
+  {terms:['plaid'], name:'Plaid', family:'Multi', score:96},
+  {terms:['stripe','striped'], name:'Stripe', family:'Multi', score:96},
+  {terms:['tie dye','tiedye'], name:'Tie Dye', family:'Multi', score:96}
 ];
 
 const MODIFIERS = {
@@ -438,7 +451,8 @@ const COMPOUNDS = [
   'TESTA DI MORO','DUSTY PINK','BURNT SIENNA','FLAME RED','NAVY BLUE',
   'OFF WHITE','MIDNIGHT BLUE','POWDER BLUE','POWDER PINK','FOREST GREEN',
   'SMOKE GREY','SMOKE GRAY','PETROL BLUE','ROYAL BLUE','ANTIQUE PINK',
-  'BURNED SIENNA','HUNTER GREEN','ARMY GREEN','BURNT ORANGE'
+  'BURNED SIENNA','HUNTER GREEN','ARMY GREEN','BURNT ORANGE','TIGER CAMO',
+  'TIE DYE'
 ];
 
 const LANG_ALIASES = {
@@ -459,6 +473,12 @@ function normalizeUnicode(s){
 }
 function cleanPunctuation(s){
   return s.replace(/[-\u2013\u2014/\\,.#()"'`_+:;]/g,' ').replace(/\s+/g,' ').trim();
+}
+/* Whole-word / whole-phrase boundary match so "ash" never matches inside "washed". */
+function hasWordOrPhrase(text, phrase){
+  const escaped=normalizeUnicode(phrase).toLowerCase().trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  if(!escaped) return false;
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,'i').test(normalizeUnicode(text).toLowerCase());
 }
 function isCodeToken(t){
   return /^\d+$/.test(t) || /\d/.test(t) || /^[A-Z]{1,2}\d+[A-Z0-9]*$/i.test(t);
@@ -515,7 +535,7 @@ function findSense(text){
   for(const item of SENSE_MAP){
     for(const term of item.terms){
       const nt=normalizeUnicode(term).toLowerCase();
-      if(normalized.includes(nt)){
+      if(hasWordOrPhrase(normalized, nt)){
         const exactBonus=normalized.trim()===nt ? 3 : 0;
         const score=item.score+exactBonus+(nt.includes(' ') ? 1 : 0);
         if(!best || score>best.score || (score===best.score && nt.length>best.term.length)){
@@ -527,12 +547,11 @@ function findSense(text){
   return best;
 }
 function familyFromFacing(facing){
-  const lower=normalizeUnicode(facing).toLowerCase();
   for(const term of OFF_WHITE_TERMS){
-    if(lower.includes(normalizeUnicode(term).toLowerCase())) return 'Off White';
+    if(hasWordOrPhrase(facing, term)) return 'Off White';
   }
   for(const [match,fam] of FAMILY_RULES){
-    if(lower.includes(normalizeUnicode(match).toLowerCase())) return fam;
+    if(hasWordOrPhrase(facing, match)) return fam;
   }
   return 'Other';
 }
@@ -545,17 +564,16 @@ function legacyExtract(raw){
   const extracted=[];
   for(const phrase of COMPOUNDS){
     const p=normalizeUnicode(phrase).toUpperCase();
-    if(upper.includes(p) && !extracted.includes(phrase)){
+    if(hasWordOrPhrase(upper, p) && !extracted.includes(phrase)){
       extracted.push(phrase);
-      upper=upper.replace(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),' ');
+      const rx=new RegExp('(?:^|[^A-Z0-9])'+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:$|[^A-Z0-9])','g');
+      upper=upper.replace(rx,' ');
     }
   }
   for(const word of upper.split(/\s+/).filter(Boolean)){
     if(!extracted.includes(word)) extracted.push(word);
   }
 
-  // Only combine 2 words if the first word is a known modifier (e.g., "Dark Zaffre");
-  // otherwise keep just the single primary word so trailing vendor terms never attach.
   const kept=[];
   if(extracted.length>0){
     kept.push(extracted[0]);
@@ -588,7 +606,7 @@ function senseFacing(raw, expandedLog){
   for(const item of SENSE_MAP){
     for(const term of item.terms){
       const nt=normalizeKnownWords(term);
-      if(normalized.toLowerCase().includes(nt.toLowerCase())){
+      if(hasWordOrPhrase(normalized, nt)){
         candidates.push({item,term,score:item.score+(nt.includes(' ')?2:0)});
       }
     }
@@ -597,7 +615,7 @@ function senseFacing(raw, expandedLog){
 
   const chosen=[];
   for(const c of candidates){
-    const already=chosen.some(x=>x.item.family===c.item.family || x.term.toLowerCase().includes(c.term.toLowerCase()));
+    const already=chosen.some(x=>x.item.family===c.item.family || hasWordOrPhrase(x.term, c.term) || hasWordOrPhrase(c.term, x.term));
     if(!already) chosen.push(c);
     if(chosen.length===2) break;
   }
@@ -606,9 +624,8 @@ function senseFacing(raw, expandedLog){
 
   let names=chosen.map(x=>x.item.name);
   const modifierWords=[];
-  const low=normalizeUnicode(cleaned).toLowerCase();
   for(const [word,canonical] of Object.entries(MODIFIERS)){
-    if(low.includes(word) && !names.some(n=>n.toLowerCase().includes(word))){
+    if(hasWordOrPhrase(cleaned, word) && !names.some(n=>hasWordOrPhrase(n, word))){
       modifierWords.push(canonical);
     }
   }
@@ -686,8 +703,7 @@ function processColorRules(rawInput, mode='sense'){
   if(/\d/.test(rawInput)) reasons.push('removed numeric/style codes');
   if(/[-\u2013\u2014\/\\#()_,.-]/.test(rawInput)) reasons.push('normalized supplier punctuation');
 
-  const normalized=normalizeUnicode(rawInput).toLowerCase();
-  const noiseFound=[...NOISE_WORDS].filter(w=>normalized.includes(w.toLowerCase()));
+  const noiseFound=[...NOISE_WORDS].filter(w=>hasWordOrPhrase(rawInput, w));
   if(noiseFound.length) reasons.push(`removed supplier noise (${noiseFound.slice(0,4).join(', ')})`);
 
   return {
