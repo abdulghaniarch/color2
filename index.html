@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="command">$ nuorder color-lookup <span>--smart --sense</span></div>
 
       <input id="lookupInput" class="input" autocomplete="off"
-        placeholder="paste raw vendor color (e.g., BLK, DK NV, T.MORO, cobblestone- dm - 021)"
+        placeholder="paste raw vendor color (e.g., BLK, DK NV, 2599 AMBER M BR, cobblestone- dm - 021)"
         aria-label="Raw vendor color">
 
       <div class="modebar">
@@ -115,6 +115,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
 blac
 wht
 DK NV
+2599 AMBER M BR
 cobblestone- dm - 021
 T.MORO / GOLD
 RETE ROSA 018/MIGN. NAP. DUSTY || DUSTY PINK 018
@@ -168,14 +169,17 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
 
 const NOISE_WORDS = new Set([
   'RETE','MIGN','MIGNON','NAP','NAPPA','INGROP','TEMP','FONDO','CAMOSCIO',
-  'VRV','NEW','NW','LIN','SF','TI','DS','BOT','WITH','S','M','L',
+  'VRV','NEW','NW','LIN','SF','TI','DS','BOT','WITH','S','M','L','XL','XS','XXL',
   'H','CM','MM','PCS','PC','STYLE','COLOR','COLOUR','COL','COD','CODE',
   'ART','ARTICLE','ITEM','REF','REFERENCE','BASE','FABRIC','LEATHER',
-  // 2-letter & 3-letter vendor/catalog noise codes
-  'DM','SS','FW','AW','OS','NO','NR','CL','SZ','PT','PR','ST','MOD','LOT','VAR','GRP'
+  'MOD','LOT','VAR','GRP','MAT','SKU','VER','SEASON'
 ]);
 
-/* Shortforms, vendor abbreviations, and multilingual mappings (keys MUST be UPPERCASE). */
+/* 2-letter prepositions kept intact so compound phrases like "TESTA DI MORO" work. */
+const CONNECTOR_WORDS = new Set(['DI','DE','DA','LA','LE','DU','OF']);
+
+/* Shortforms, vendor abbreviations, and multilingual mappings (keys MUST be UPPERCASE).
+   Any 2-letter shortform listed here is expanded; unlisted 2-letter codes are stripped as noise. */
 const COLOR_MAP = {
   // Common English & apparel shortforms
   'BLAC':'Black','BLK':'Black','BK':'Black',
@@ -212,6 +216,22 @@ const COLOR_MAP = {
   'T.MORO':'Testa Di Moro',
   'COBB':'Cobblestone',
   'ESP':'Espresso',
+  'AMB':'Amber',
+  'OCH':'Ochre',
+  'IND':'Indigo',
+  'COB':'Cobalt',
+  'EMR':'Emerald',
+  'PLM':'Plum',
+  'MAU':'Mauve',
+  'BLSH':'Blush',
+  'PCH':'Peach',
+  'APR':'Apricot',
+  'CAR':'Caramel',
+  'CHOC':'Chocolate',
+  'OAT':'Oatmeal',
+  'BRZ':'Bronze',
+  'COP':'Copper',
+  'PEW':'Pewter',
 
   // Modifier shortforms
   'DK':'Dark','DRK':'Dark',
@@ -240,7 +260,8 @@ const COLOR_MAP = {
 
 const OFF_WHITE_TERMS = new Set([
   'ivory','cream','off white','offwhite','off-white','bone','ecru',
-  'champagne','vanilla','mascarpone','panna','panna latte','latte'
+  'champagne','vanilla','mascarpone','panna','panna latte','latte',
+  'snow','chalk','alabaster','pearl','oatmeal','oat'
 ]);
 
 /* Original family rules retained and extended. */
@@ -248,22 +269,36 @@ const FAMILY_RULES = [
   ['testa di moro','Brown'],['dusty pink','Pink'],['flame red','Red'],
   ['burnt sienna','Brown'],['maroon','Red'],['carmine','Red'],
   ['oxblood','Red'],['bordeaux','Red'],['burgundy','Red'],['wine','Red'],
-  ['rust','Orange'],['terracotta','Orange'],['coral','Orange'],
-  ['red','Red'],['pink','Pink'],['magenta','Pink'],
+  ['crimson','Red'],['scarlet','Red'],['ruby','Red'],['cherry','Red'],
+  ['amber','Orange'],['ochre','Orange'],['marigold','Orange'],['apricot','Orange'],
+  ['peach','Orange'],['tangerine','Orange'],['rust','Orange'],['terracotta','Orange'],
+  ['coral','Orange'],['copper','Orange'],['burnt orange','Orange'],
+  ['red','Red'],['blush','Pink'],['rose','Pink'],['fuchsia','Pink'],
+  ['berry','Pink'],['pink','Pink'],['magenta','Pink'],
   ['cognac','Brown'],['cuoio','Brown'],['sienna','Brown'],
-  ['espresso','Brown'],['mocha','Brown'],
-  ['camel','Brown'],['taupe','Brown'],['brown','Brown'],
+  ['espresso','Brown'],['mocha','Brown'],['chocolate','Brown'],['coffee','Brown'],
+  ['caramel','Brown'],['toffee','Brown'],['chestnut','Brown'],['mahogany','Brown'],
+  ['walnut','Brown'],['bronze','Brown'],['camel','Brown'],['taupe','Brown'],['brown','Brown'],
   ['navy','Blue'],['midnight blue','Blue'],['petrol blue','Blue'],
   ['petrol','Blue'],['royal blue','Blue'],['sky blue','Blue'],
-  ['powder blue','Blue'],['baby blue','Blue'],['turquoise','Blue'],['blue','Blue'],
+  ['powder blue','Blue'],['baby blue','Blue'],['turquoise','Blue'],
+  ['indigo','Blue'],['cobalt','Blue'],['cerulean','Blue'],['aqua','Blue'],
+  ['cyan','Blue'],['denim','Blue'],['slate blue','Blue'],['blue','Blue'],
   ['cobblestone','Grey'],['stone','Grey'],['slate','Grey'],['pebble','Grey'],
   ['charcoal','Grey'],['smoke grey','Grey'],['stone grey','Grey'],
+  ['ash','Grey'],['pewter','Grey'],['graphite','Grey'],['gunmetal','Grey'],
   ['grey','Grey'],['gray','Grey'],['tan','Tan'],['sand','Tan'],['khaki','Tan'],
-  ['beige','Beige'],['black','Black'],['butter','Yellow'],['mustard','Yellow'],
-  ['yellow','Yellow'],['gold','Yellow'],['white','White'],['silver','Silver'],
-  ['green','Green'],['forest green','Green'],['olive','Green'],
-  ['sage','Green'],['mint','Green'],['teal','Green'],['purple','Purple'],
-  ['violet','Purple'],['lilac','Purple'],['lavender','Purple'],['orange','Orange']
+  ['almond','Tan'],['biscuit','Tan'],['putty','Tan'],
+  ['beige','Beige'],['nude','Beige'],['black','Black'],['onyx','Black'],['jet','Black'],
+  ['butter','Yellow'],['mustard','Yellow'],['lemon','Yellow'],['canary','Yellow'],
+  ['honey','Yellow'],['saffron','Yellow'],['yellow','Yellow'],['gold','Yellow'],
+  ['white','White'],['silver','Silver'],
+  ['green','Green'],['forest green','Green'],['olive','Green'],['emerald','Green'],
+  ['hunter green','Green'],['army green','Green'],['moss','Green'],['lime','Green'],
+  ['chartreuse','Green'],['sage','Green'],['mint','Green'],['teal','Green'],
+  ['purple','Purple'],['violet','Purple'],['lilac','Purple'],['lavender','Purple'],
+  ['plum','Purple'],['mauve','Purple'],['eggplant','Purple'],['aubergine','Purple'],
+  ['orchid','Purple'],['orange','Orange']
 ];
 
 /* Semantic fashion/vendor vocabulary. Each entry has a canonical customer
@@ -276,44 +311,86 @@ const SENSE_MAP = [
   {terms:['royal blue','bluette'], name:'Royal Blue', family:'Blue', score:97},
   {terms:['powder blue'], name:'Powder Blue', family:'Blue', score:97},
   {terms:['turquoise'], name:'Turquoise', family:'Blue', score:97},
+  {terms:['indigo'], name:'Indigo', family:'Blue', score:97},
+  {terms:['cobalt'], name:'Cobalt', family:'Blue', score:97},
+  {terms:['cerulean'], name:'Cerulean', family:'Blue', score:96},
+  {terms:['aqua'], name:'Aqua', family:'Blue', score:96},
+  {terms:['cyan'], name:'Cyan', family:'Blue', score:96},
+  {terms:['denim'], name:'Denim', family:'Blue', score:96},
   {terms:['blu','blue'], name:'Blue', family:'Blue', score:95},
 
   {terms:['verde bosco','forest green'], name:'Forest Green', family:'Green', score:98},
   {terms:['verde oliva','olive'], name:'Olive', family:'Green', score:97},
   {terms:['verde salvia','sage'], name:'Sage', family:'Green', score:97},
+  {terms:['emerald'], name:'Emerald', family:'Green', score:97},
+  {terms:['hunter green'], name:'Hunter Green', family:'Green', score:97},
+  {terms:['army green'], name:'Army Green', family:'Green', score:97},
+  {terms:['moss'], name:'Moss', family:'Green', score:96},
+  {terms:['lime'], name:'Lime', family:'Green', score:96},
+  {terms:['chartreuse'], name:'Chartreuse', family:'Green', score:96},
   {terms:['mint'], name:'Mint', family:'Green', score:96},
   {terms:['teal'], name:'Teal', family:'Green', score:96},
 
   {terms:['cipria','powder pink'], name:'Powder Pink', family:'Pink', score:97},
   {terms:['rosa antico','antique pink'], name:'Antique Pink', family:'Pink', score:97},
   {terms:['dusty pink'], name:'Dusty Pink', family:'Pink', score:99},
+  {terms:['blush'], name:'Blush', family:'Pink', score:97},
+  {terms:['rose'], name:'Rose', family:'Pink', score:96},
+  {terms:['fuchsia'], name:'Fuchsia', family:'Pink', score:97},
   {terms:['magenta'], name:'Magenta', family:'Pink', score:96},
   {terms:['rosa','pink'], name:'Pink', family:'Pink', score:95},
 
   {terms:['bordeaux','burgundy','wine'], name:'Bordeaux', family:'Red', score:97},
+  {terms:['crimson'], name:'Crimson', family:'Red', score:97},
+  {terms:['scarlet'], name:'Scarlet', family:'Red', score:97},
+  {terms:['ruby'], name:'Ruby', family:'Red', score:97},
+  {terms:['cherry'], name:'Cherry', family:'Red', score:96},
   {terms:['rosso','red'], name:'Red', family:'Red', score:96},
   {terms:['oxblood'], name:'Oxblood', family:'Red', score:98},
   {terms:['carmine'], name:'Carmine', family:'Red', score:98},
+
+  {terms:['amber'], name:'Amber', family:'Orange', score:97},
+  {terms:['ochre'], name:'Ochre', family:'Orange', score:97},
+  {terms:['marigold'], name:'Marigold', family:'Orange', score:97},
+  {terms:['apricot'], name:'Apricot', family:'Orange', score:97},
+  {terms:['peach'], name:'Peach', family:'Orange', score:97},
+  {terms:['tangerine'], name:'Tangerine', family:'Orange', score:97},
+  {terms:['terracotta'], name:'Terracotta', family:'Orange', score:97},
   {terms:['coral'], name:'Coral', family:'Orange', score:97},
+  {terms:['copper'], name:'Copper', family:'Orange', score:97},
+  {terms:['ruggine','rust'], name:'Rust', family:'Orange', score:97},
 
   {terms:['testa di moro','t.moro'], name:'Testa Di Moro', family:'Brown', score:99},
   {terms:['cuoio'], name:'Cuoio', family:'Brown', score:98},
   {terms:['cognac'], name:'Cognac', family:'Brown', score:98},
   {terms:['espresso'], name:'Espresso', family:'Brown', score:97},
   {terms:['mocha'], name:'Mocha', family:'Brown', score:97},
+  {terms:['chocolate'], name:'Chocolate', family:'Brown', score:97},
+  {terms:['coffee'], name:'Coffee', family:'Brown', score:97},
+  {terms:['caramel'], name:'Caramel', family:'Brown', score:97},
+  {terms:['toffee'], name:'Toffee', family:'Brown', score:97},
+  {terms:['chestnut'], name:'Chestnut', family:'Brown', score:97},
+  {terms:['mahogany'], name:'Mahogany', family:'Brown', score:97},
+  {terms:['walnut'], name:'Walnut', family:'Brown', score:97},
+  {terms:['bronze'], name:'Bronze', family:'Brown', score:97},
   {terms:['sabbia','sand'], name:'Sand', family:'Tan', score:97},
   {terms:['khaki'], name:'Khaki', family:'Tan', score:97},
+  {terms:['almond'], name:'Almond', family:'Tan', score:96},
+  {terms:['putty'], name:'Putty', family:'Tan', score:96},
   {terms:['camel'], name:'Camel', family:'Brown', score:97},
   {terms:['taupe'], name:'Taupe', family:'Brown', score:97},
   {terms:['burnt sienna'], name:'Burnt Sienna', family:'Brown', score:98},
   {terms:['sienna'], name:'Sienna', family:'Brown', score:97},
-  {terms:['ruggine','rust'], name:'Rust', family:'Orange', score:97},
   {terms:['brown'], name:'Brown', family:'Brown', score:96},
 
   {terms:['cobblestone'], name:'Cobblestone', family:'Grey', score:97},
   {terms:['stone grey','stone gray','stone'], name:'Stone', family:'Grey', score:97},
   {terms:['slate'], name:'Slate', family:'Grey', score:97},
   {terms:['pebble'], name:'Pebble', family:'Grey', score:97},
+  {terms:['ash'], name:'Ash', family:'Grey', score:96},
+  {terms:['pewter'], name:'Pewter', family:'Grey', score:97},
+  {terms:['graphite'], name:'Graphite', family:'Grey', score:97},
+  {terms:['gunmetal'], name:'Gunmetal', family:'Grey', score:97},
   {terms:['grigio fumo','smoke grey','smoke gray'], name:'Smoke Grey', family:'Grey', score:98},
   {terms:['antracite','anthracite'], name:'Anthracite', family:'Grey', score:98},
   {terms:['charcoal'], name:'Charcoal', family:'Grey', score:98},
@@ -324,13 +401,25 @@ const SENSE_MAP = [
   {terms:['ecru','écru'], name:'Ecru', family:'Off White', score:98},
   {terms:['champagne'], name:'Champagne', family:'Off White', score:97},
   {terms:['bone'], name:'Bone', family:'Off White', score:97},
+  {terms:['oatmeal','oat'], name:'Oatmeal', family:'Off White', score:97},
+  {terms:['pearl'], name:'Pearl', family:'Off White', score:97},
+  {terms:['alabaster'], name:'Alabaster', family:'Off White', score:97},
   {terms:['bianco','blanc','white'], name:'White', family:'White', score:96},
   {terms:['nero','noir','black'], name:'Black', family:'Black', score:97},
+  {terms:['onyx'], name:'Onyx', family:'Black', score:97},
   {terms:['argento','silver'], name:'Silver', family:'Silver', score:97},
   {terms:['oro','gold'], name:'Gold', family:'Yellow', score:97},
+  {terms:['mustard'], name:'Mustard', family:'Yellow', score:97},
+  {terms:['butter'], name:'Butter', family:'Yellow', score:97},
+  {terms:['lemon'], name:'Lemon', family:'Yellow', score:96},
+  {terms:['honey'], name:'Honey', family:'Yellow', score:96},
   {terms:['giallo','yellow'], name:'Yellow', family:'Yellow', score:96},
   {terms:['verde','green'], name:'Green', family:'Green', score:96},
   {terms:['arancio','arancione','orange'], name:'Orange', family:'Orange', score:96},
+  {terms:['plum'], name:'Plum', family:'Purple', score:97},
+  {terms:['mauve'], name:'Mauve', family:'Purple', score:97},
+  {terms:['eggplant','aubergine'], name:'Eggplant', family:'Purple', score:97},
+  {terms:['orchid'], name:'Orchid', family:'Purple', score:96},
   {terms:['viola','violet','purple'], name:'Purple', family:'Purple', score:96},
   {terms:['lilla','lilac'], name:'Lilac', family:'Purple', score:96},
   {terms:['lavender'], name:'Lavender', family:'Purple', score:96},
@@ -349,7 +438,7 @@ const COMPOUNDS = [
   'TESTA DI MORO','DUSTY PINK','BURNT SIENNA','FLAME RED','NAVY BLUE',
   'OFF WHITE','MIDNIGHT BLUE','POWDER BLUE','POWDER PINK','FOREST GREEN',
   'SMOKE GREY','SMOKE GRAY','PETROL BLUE','ROYAL BLUE','ANTIQUE PINK',
-  'BURNED SIENNA'
+  'BURNED SIENNA','HUNTER GREEN','ARMY GREEN','BURNT ORANGE'
 ];
 
 const LANG_ALIASES = {
@@ -396,7 +485,7 @@ function stripNoise(text, expandedLog){
   for(let token of tokens){
     const upper=token.toUpperCase();
 
-    // 2. Direct shortform match (runs BEFORE 1-letter and noise filters)
+    // 2. Direct shortform match (runs BEFORE length & noise filters)
     if(COLOR_MAP[upper]){
       if(expandedLog) expandedLog.push(`${upper} → ${COLOR_MAP[upper]}`);
       out.push(COLOR_MAP[upper]);
@@ -413,6 +502,8 @@ function stripNoise(text, expandedLog){
 
     if(isCodeToken(token)) continue;
     if(token.length===1 && /[A-Za-z]/.test(token)) continue;
+    // 4. Drop any unrecognized 2-letter vendor/size codes (e.g., DM, BR, XS, XL) unless a connector word
+    if(token.length===2 && /^[A-Za-z]{2}$/.test(token) && !CONNECTOR_WORDS.has(upper)) continue;
     if(NOISE_WORDS.has(upper)) continue;
     out.push(token);
   }
@@ -463,7 +554,17 @@ function legacyExtract(raw){
     if(!extracted.includes(word)) extracted.push(word);
   }
 
-  let final=titleCase(extracted.slice(0,2).join(' '));
+  // Only combine 2 words if the first word is a known modifier (e.g., "Dark Zaffre");
+  // otherwise keep just the single primary word so trailing vendor terms never attach.
+  const kept=[];
+  if(extracted.length>0){
+    kept.push(extracted[0]);
+    if(MODIFIERS[extracted[0].toLowerCase()] && extracted.length>1){
+      kept.push(extracted[1]);
+    }
+  }
+
+  let final=titleCase(kept.join(' '));
   if(final.length>30){
     const words=final.split(' ');
     while(words.join(' ').length>30 && words.length) words.pop();
