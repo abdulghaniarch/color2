@@ -69,7 +69,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
 
   <div class="body">
     <div class="prompt"><span class="dollar">$</span> nuorder color-lookup <span class="cmd">--watch</span></div>
-    <div class="stats">indexed <span class="cyan" id="colorCount">116,508</span> colors · <span class="cyan">14</span> families · <span class="green">smart</span> engine <button class="refresh" id="refresh">↻ refresh</button></div>
+    <div class="stats">indexed <span class="cyan" id="colorCount">116,508</span> colors · <span class="cyan">14</span> families · <span class="green">smart v2.4</span> engine <button class="refresh" id="refresh">↻ refresh</button></div>
 
     <div class="tabs">
       <button class="tab active" data-tab="lookup">lookup</button>
@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="command">$ nuorder color-lookup <span>--smart --sense</span></div>
 
       <input id="lookupInput" class="input" autocomplete="off"
-        placeholder="paste raw vendor color (e.g., WASHED BLACK, WASHED TIGER CAMO, DK NV)"
+        placeholder="paste raw vendor color (e.g., bras, WASHED BLACK, DK NV)"
         aria-label="Raw vendor color">
 
       <div class="modebar">
@@ -112,6 +112,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
     <section class="view" id="batch">
       <div class="command">$ nuorder color-lookup <span>--batch &lt; colors.txt</span></div>
       <textarea id="batchInput" class="input" placeholder="Paste raw supplier strings (one per line)...
+bras
 WASHED BLACK
 WASHED TIGER CAMO
 DK NV
@@ -153,7 +154,7 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
   </div>
 
   <div class="footer">
-    <span>index: <span id="footerCount">116,508</span> colors</span>
+    <span>index: <span id="footerCount">116,508</span> colors · build v2.4</span>
     <span>rebuilt: <span id="time"></span></span>
   </div>
 </div>
@@ -162,7 +163,7 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
 
 <script>
 /* ============================================================
-   NUORDER COLOR INTELLIGENCE ENGINE
+   NUORDER COLOR INTELLIGENCE ENGINE (v2.4)
    Legacy rules are intentionally retained and run before
    semantic/sense rules. No external API is required.
    ============================================================ */
@@ -178,10 +179,10 @@ const NOISE_WORDS = new Set([
 /* 2-letter prepositions kept intact so compound phrases like "TESTA DI MORO" work. */
 const CONNECTOR_WORDS = new Set(['DI','DE','DA','LA','LE','DU','OF']);
 
-/* Shortforms, vendor abbreviations, and multilingual mappings (keys MUST be UPPERCASE).
+/* Shortforms, vendor abbreviations, typos, and multilingual mappings (keys MUST be UPPERCASE).
    Any 2-letter shortform listed here is expanded; unlisted 2-letter codes are stripped as noise. */
 const COLOR_MAP = {
-  // Common English & apparel shortforms
+  // Common English, apparel shortforms & vendor truncations
   'BLAC':'Black','BLK':'Black','BK':'Black',
   'WHT':'White','WH':'White',
   'GRY':'Grey','GRAY':'Grey','GY':'Grey',
@@ -197,6 +198,7 @@ const COLOR_MAP = {
   'BEG':'Beige','BGE':'Beige','BG':'Beige',
   'SLV':'Silver','SIL':'Silver','SV':'Silver',
   'GLD':'Gold','GD':'Gold',
+  'BRAS':'Brass','BRS':'Brass',
   'CHAR':'Charcoal','CHRC':'Charcoal',
   'BURG':'Burgundy','BORD':'Bordeaux',
   'OLV':'Olive','OL':'Olive',
@@ -292,7 +294,7 @@ const FAMILY_RULES = [
   ['almond','Tan'],['biscuit','Tan'],['putty','Tan'],
   ['beige','Beige'],['nude','Beige'],['black','Black'],['onyx','Black'],['jet','Black'],
   ['butter','Yellow'],['mustard','Yellow'],['lemon','Yellow'],['canary','Yellow'],
-  ['honey','Yellow'],['saffron','Yellow'],['yellow','Yellow'],['gold','Yellow'],
+  ['honey','Yellow'],['saffron','Yellow'],['yellow','Yellow'],['gold','Yellow'],['brass','Yellow'],
   ['white','White'],['silver','Silver'],
   ['green','Green'],['forest green','Green'],['olive','Green'],['emerald','Green'],
   ['hunter green','Green'],['army green','Green'],['moss','Green'],['lime','Green'],
@@ -413,6 +415,7 @@ const SENSE_MAP = [
   {terms:['onyx'], name:'Onyx', family:'Black', score:97},
   {terms:['argento','silver'], name:'Silver', family:'Silver', score:97},
   {terms:['oro','gold'], name:'Gold', family:'Yellow', score:97},
+  {terms:['brass'], name:'Brass', family:'Yellow', score:97},
   {terms:['mustard'], name:'Mustard', family:'Yellow', score:97},
   {terms:['butter'], name:'Butter', family:'Yellow', score:97},
   {terms:['lemon'], name:'Lemon', family:'Yellow', score:96},
@@ -444,7 +447,7 @@ const MODIFIERS = {
   'medium':'Medium','mid':'Medium','soft':'Soft','dusty':'Dusty','muted':'Muted',
   'pastel':'Pastel','vintage':'Vintage','washed':'Washed','smoke':'Smoke',
   'smoky':'Smoky','neon':'Neon','powder':'Powder','burnt':'Burnt','warm':'Warm',
-  'cool':'Cool','heather':'Heather','off':'Off'
+  'cool':'Cool','heather':'Heather','off':'Off','antique':'Antique','brushed':'Brushed'
 };
 
 const COMPOUNDS = [
@@ -505,14 +508,14 @@ function stripNoise(text, expandedLog){
   for(let token of tokens){
     const upper=token.toUpperCase();
 
-    // 2. Direct shortform match (runs BEFORE length & noise filters)
+    // 2. Direct shortform/typo match (runs BEFORE length & noise filters)
     if(COLOR_MAP[upper]){
       if(expandedLog) expandedLog.push(`${upper} → ${COLOR_MAP[upper]}`);
       out.push(COLOR_MAP[upper]);
       continue;
     }
 
-    // 3. Glued alphanumeric shortforms (e.g., BLK01 -> Black, WHT2 -> White)
+    // 3. Glued alphanumeric shortforms (e.g., BLK01 -> Black, BRAS01 -> Brass)
     const alphaMatch=upper.match(/^([A-Z]+)\d+$/) || upper.match(/^\d+([A-Z]+)$/);
     if(alphaMatch && COLOR_MAP[alphaMatch[1]]){
       if(expandedLog) expandedLog.push(`${upper} → ${COLOR_MAP[alphaMatch[1]]}`);
