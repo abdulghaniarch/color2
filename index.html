@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="command">$ nuorder color-lookup <span>--smart --sense</span></div>
 
       <input id="lookupInput" class="input" autocomplete="off"
-        placeholder="paste raw vendor color (e.g., BLK, DK NV, T.MORO, WHT01)"
+        placeholder="paste raw vendor color (e.g., BLK, DK NV, T.MORO, cobblestone- dm - 021)"
         aria-label="Raw vendor color">
 
       <div class="modebar">
@@ -115,6 +115,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
 blac
 wht
 DK NV
+cobblestone- dm - 021
 T.MORO / GOLD
 RETE ROSA 018/MIGN. NAP. DUSTY || DUSTY PINK 018
 NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
@@ -169,7 +170,9 @@ const NOISE_WORDS = new Set([
   'RETE','MIGN','MIGNON','NAP','NAPPA','INGROP','TEMP','FONDO','CAMOSCIO',
   'VRV','NEW','NW','LIN','SF','TI','DS','BOT','WITH','S','M','L',
   'H','CM','MM','PCS','PC','STYLE','COLOR','COLOUR','COL','COD','CODE',
-  'ART','ARTICLE','ITEM','REF','REFERENCE','BASE','FABRIC','LEATHER'
+  'ART','ARTICLE','ITEM','REF','REFERENCE','BASE','FABRIC','LEATHER',
+  // 2-letter & 3-letter vendor/catalog noise codes
+  'DM','SS','FW','AW','OS','NO','NR','CL','SZ','PT','PR','ST','MOD','LOT','VAR','GRP'
 ]);
 
 /* Shortforms, vendor abbreviations, and multilingual mappings (keys MUST be UPPERCASE). */
@@ -207,6 +210,8 @@ const COLOR_MAP = {
   'CARM':'Carmine',
   'BUTT':'Butter','BUT':'Butter',
   'T.MORO':'Testa Di Moro',
+  'COBB':'Cobblestone',
+  'ESP':'Espresso',
 
   // Modifier shortforms
   'DK':'Dark','DRK':'Dark',
@@ -246,10 +251,12 @@ const FAMILY_RULES = [
   ['rust','Orange'],['terracotta','Orange'],['coral','Orange'],
   ['red','Red'],['pink','Pink'],['magenta','Pink'],
   ['cognac','Brown'],['cuoio','Brown'],['sienna','Brown'],
+  ['espresso','Brown'],['mocha','Brown'],
   ['camel','Brown'],['taupe','Brown'],['brown','Brown'],
   ['navy','Blue'],['midnight blue','Blue'],['petrol blue','Blue'],
   ['petrol','Blue'],['royal blue','Blue'],['sky blue','Blue'],
   ['powder blue','Blue'],['baby blue','Blue'],['turquoise','Blue'],['blue','Blue'],
+  ['cobblestone','Grey'],['stone','Grey'],['slate','Grey'],['pebble','Grey'],
   ['charcoal','Grey'],['smoke grey','Grey'],['stone grey','Grey'],
   ['grey','Grey'],['gray','Grey'],['tan','Tan'],['sand','Tan'],['khaki','Tan'],
   ['beige','Beige'],['black','Black'],['butter','Yellow'],['mustard','Yellow'],
@@ -292,6 +299,8 @@ const SENSE_MAP = [
   {terms:['testa di moro','t.moro'], name:'Testa Di Moro', family:'Brown', score:99},
   {terms:['cuoio'], name:'Cuoio', family:'Brown', score:98},
   {terms:['cognac'], name:'Cognac', family:'Brown', score:98},
+  {terms:['espresso'], name:'Espresso', family:'Brown', score:97},
+  {terms:['mocha'], name:'Mocha', family:'Brown', score:97},
   {terms:['sabbia','sand'], name:'Sand', family:'Tan', score:97},
   {terms:['khaki'], name:'Khaki', family:'Tan', score:97},
   {terms:['camel'], name:'Camel', family:'Brown', score:97},
@@ -301,6 +310,10 @@ const SENSE_MAP = [
   {terms:['ruggine','rust'], name:'Rust', family:'Orange', score:97},
   {terms:['brown'], name:'Brown', family:'Brown', score:96},
 
+  {terms:['cobblestone'], name:'Cobblestone', family:'Grey', score:97},
+  {terms:['stone grey','stone gray','stone'], name:'Stone', family:'Grey', score:97},
+  {terms:['slate'], name:'Slate', family:'Grey', score:97},
+  {terms:['pebble'], name:'Pebble', family:'Grey', score:97},
   {terms:['grigio fumo','smoke grey','smoke gray'], name:'Smoke Grey', family:'Grey', score:98},
   {terms:['antracite','anthracite'], name:'Anthracite', family:'Grey', score:98},
   {terms:['charcoal'], name:'Charcoal', family:'Grey', score:98},
@@ -356,7 +369,7 @@ function normalizeUnicode(s){
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 function cleanPunctuation(s){
-  return s.replace(/[-/\\,.#()"'`_+:;]/g,' ').replace(/\s+/g,' ').trim();
+  return s.replace(/[-\u2013\u2014/\\,.#()"'`_+:;]/g,' ').replace(/\s+/g,' ').trim();
 }
 function isCodeToken(t){
   return /^\d+$/.test(t) || /\d/.test(t) || /^[A-Z]{1,2}\d+[A-Z0-9]*$/i.test(t);
@@ -570,7 +583,7 @@ function processColorRules(rawInput, mode='sense'){
 
   if(rawInput.includes('|')) reasons.push('split supplier pipe segments');
   if(/\d/.test(rawInput)) reasons.push('removed numeric/style codes');
-  if(/[\/\\#()_,.-]/.test(rawInput)) reasons.push('normalized supplier punctuation');
+  if(/[-\u2013\u2014\/\\#()_,.-]/.test(rawInput)) reasons.push('normalized supplier punctuation');
 
   const normalized=normalizeUnicode(rawInput).toLowerCase();
   const noiseFound=[...NOISE_WORDS].filter(w=>normalized.includes(w.toLowerCase()));
