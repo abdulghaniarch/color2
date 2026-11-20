@@ -69,7 +69,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
 
   <div class="body">
     <div class="prompt"><span class="dollar">$</span> nuorder color-lookup <span class="cmd">--watch</span></div>
-    <div class="stats">indexed <span class="cyan" id="colorCount">116,508</span> colors · <span class="cyan">14</span> families · <span class="green">smart v2.4</span> engine <button class="refresh" id="refresh">↻ refresh</button></div>
+    <div class="stats">indexed <span class="cyan" id="colorCount">116,508</span> colors · <span class="cyan">14</span> families · <span class="green">smart v2.6</span> engine <button class="refresh" id="refresh">↻ refresh</button></div>
 
     <div class="tabs">
       <button class="tab active" data-tab="lookup">lookup</button>
@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="command">$ nuorder color-lookup <span>--smart --sense</span></div>
 
       <input id="lookupInput" class="input" autocomplete="off"
-        placeholder="paste raw vendor color (e.g., bras, WASHED BLACK, DK NV)"
+        placeholder="paste raw vendor color (e.g., yllw, brwn, bras, DK NV)"
         aria-label="Raw vendor color">
 
       <div class="modebar">
@@ -94,6 +94,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
       <div class="copy-row">
         <button class="copy" id="copyFacing" disabled>copy facing</button>
         <button class="copy" id="copyFamily" disabled>copy family</button>
+        <button class="copy" id="copyBoth" disabled>copy facing + family</button>
       </div>
 
       <div class="result" id="lookupResult">
@@ -112,15 +113,14 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{padding:12px 14p
     <section class="view" id="batch">
       <div class="command">$ nuorder color-lookup <span>--batch &lt; colors.txt</span></div>
       <textarea id="batchInput" class="input" placeholder="Paste raw supplier strings (one per line)...
+yllw
+brwn
 bras
+DRK NVY
+LGHT GRY
 WASHED BLACK
-WASHED TIGER CAMO
-DK NV
-2599 AMBER M BR
-cobblestone- dm - 021
 T.MORO / GOLD
-RETE ROSA 018/MIGN. NAP. DUSTY || DUSTY PINK 018
-NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
+RETE ROSA 018/MIGN. NAP. DUSTY || DUSTY PINK 018"></textarea>
       <div class="controls">
         <button class="action primary" id="runBatch">run</button>
         <button class="action" id="clearBatch">clear</button>
@@ -128,6 +128,7 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
       <div class="copy-row">
         <button class="copy" id="batchCopyFacing" disabled>copy facing</button>
         <button class="copy" id="batchCopyFamily" disabled>copy family</button>
+        <button class="copy" id="batchCopyBoth" disabled>copy facing + family</button>
       </div>
       <div class="table-wrap hidden" id="batchWrap">
         <table>
@@ -154,7 +155,7 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
   </div>
 
   <div class="footer">
-    <span>index: <span id="footerCount">116,508</span> colors · build v2.4</span>
+    <span>index: <span id="footerCount">116,508</span> colors · build v2.6</span>
     <span>rebuilt: <span id="time"></span></span>
   </div>
 </div>
@@ -163,7 +164,7 @@ NERO H140CM || NERO H140CM || ARGENTO FONDO BIANCO"></textarea>
 
 <script>
 /* ============================================================
-   NUORDER COLOR INTELLIGENCE ENGINE (v2.4)
+   NUORDER COLOR INTELLIGENCE ENGINE (v2.6)
    Legacy rules are intentionally retained and run before
    semantic/sense rules. No external API is required.
    ============================================================ */
@@ -183,67 +184,76 @@ const CONNECTOR_WORDS = new Set(['DI','DE','DA','LA','LE','DU','OF']);
    Any 2-letter shortform listed here is expanded; unlisted 2-letter codes are stripped as noise. */
 const COLOR_MAP = {
   // Common English, apparel shortforms & vendor truncations
-  'BLAC':'Black','BLK':'Black','BK':'Black',
-  'WHT':'White','WH':'White',
+  'BLCK':'Black','BLAC':'Black','BLK':'Black','BK':'Black',
+  'WHTE':'White','WHT':'White','WH':'White',
   'GRY':'Grey','GRAY':'Grey','GY':'Grey',
-  'GRN':'Green','GN':'Green',
+  'GREN':'Green','GRN':'Green','GN':'Green',
   'BLU':'Blue','BL':'Blue',
   'NV':'Navy','NVY':'Navy',
-  'RED':'Red','RD':'Red',
+  'RD':'Red',
   'PNK':'Pink','PK':'Pink',
-  'YLW':'Yellow','YEL':'Yellow','YL':'Yellow',
-  'ORG':'Orange','ORNG':'Orange','OR':'Orange',
-  'PRP':'Purple','PUR':'Purple','PPL':'Purple',
-  'BRN':'Brown','BRW':'Brown','BN':'Brown',
-  'BEG':'Beige','BGE':'Beige','BG':'Beige',
-  'SLV':'Silver','SIL':'Silver','SV':'Silver',
+  'YLLW':'Yellow','YLW':'Yellow','YEL':'Yellow','YL':'Yellow',
+  'ORNG':'Orange','ORG':'Orange','OR':'Orange',
+  'PRPL':'Purple','PURP':'Purple','PRP':'Purple','PUR':'Purple','PPL':'Purple',
+  'BRWN':'Brown','BRN':'Brown','BRW':'Brown','BN':'Brown',
+  'BEIG':'Beige','BEG':'Beige','BGE':'Beige','BG':'Beige',
+  'SLVR':'Silver','SLV':'Silver','SIL':'Silver','SV':'Silver',
   'GLD':'Gold','GD':'Gold',
   'BRAS':'Brass','BRS':'Brass',
   'CHAR':'Charcoal','CHRC':'Charcoal',
-  'BURG':'Burgundy','BORD':'Bordeaux',
-  'OLV':'Olive','OL':'Olive',
-  'TRQ':'Turquoise','TURQ':'Turquoise',
-  'MAG':'Magenta',
-  'IVR':'Ivory','IVY':'Ivory',
-  'CRM':'Cream',
-  'COR':'Coral',
-  'LAV':'Lavender',
-  'MNT':'Mint',
-  'TEL':'Teal',
-  'CAM':'Camel','CML':'Camel',
-  'TAU':'Taupe',
-  'KHK':'Khaki',
+  'BURG':'Burgundy','BRG':'Burgundy','BORD':'Bordeaux','BDX':'Bordeaux',
+  'OLIV':'Olive','OLV':'Olive','OL':'Olive',
+  'TRQ':'Turquoise','TURQ':'Turquoise','TQ':'Turquoise',
+  'MGNT':'Magenta','MAG':'Magenta',
+  'IVRY':'Ivory','IVR':'Ivory','IVY':'Ivory',
+  'CREM':'Cream','CRM':'Cream',
+  'CORL':'Coral','COR':'Coral',
+  'LVND':'Lavender','LAV':'Lavender',
+  'MNT':'Mint','MT':'Mint',
+  'TEL':'Teal','TL':'Teal',
+  'CAML':'Camel','CAM':'Camel','CML':'Camel',
+  'TAUP':'Taupe','TAU':'Taupe',
+  'KHKI':'Khaki','KHK':'Khaki',
   'CARM':'Carmine',
   'BUTT':'Butter','BUT':'Butter',
   'T.MORO':'Testa Di Moro',
   'COBB':'Cobblestone',
-  'ESP':'Espresso',
+  'ESPR':'Espresso','ESP':'Espresso',
   'AMB':'Amber',
   'OCH':'Ochre',
-  'IND':'Indigo',
-  'COB':'Cobalt',
-  'EMR':'Emerald',
+  'INDG':'Indigo','IND':'Indigo',
+  'CBLT':'Cobalt','COB':'Cobalt',
+  'EMRL':'Emerald','EMR':'Emerald',
   'PLM':'Plum',
-  'MAU':'Mauve',
+  'MAUV':'Mauve','MAU':'Mauve',
   'BLSH':'Blush',
-  'PCH':'Peach',
+  'PECH':'Peach','PCH':'Peach',
   'APR':'Apricot',
   'CAR':'Caramel',
   'CHOC':'Chocolate',
   'OAT':'Oatmeal',
-  'BRZ':'Bronze',
-  'COP':'Copper',
-  'PEW':'Pewter',
+  'BRNZ':'Bronze','BRZ':'Bronze',
+  'COPP':'Copper','COP':'Copper',
+  'PWTR':'Pewter','PEW':'Pewter',
+  'MSTR':'Mustard','MST':'Mustard',
+  'SND':'Sand',
+  'RST':'Rust',
+  'WNE':'Wine',
+  'SLT':'Slate',
+  'STN':'Stone',
+  'MLT':'Multi','MULT':'Multi','ASST':'Multi',
 
   // Modifier shortforms
   'DK':'Dark','DRK':'Dark',
-  'LT':'Light','LGT':'Light',
+  'LT':'Light','LGHT':'Light','LGT':'Light',
   'MD':'Medium','MED':'Medium',
-  'BRT':'Bright',
-  'PSTL':'Pastel',
-  'DST':'Dusty',
-  'HTR':'Heather',
-  'WSH':'Washed',
+  'BRGT':'Bright','BRT':'Bright',
+  'PSTL':'Pastel','PST':'Pastel',
+  'DSTY':'Dusty','DST':'Dusty',
+  'HTHR':'Heather','HTR':'Heather',
+  'WSHD':'Washed','WSH':'Washed',
+  'VNTG':'Vintage','VTG':'Vintage',
+  'SFT':'Soft',
 
   // Multilingual vendor terms
   'ROSA':'Pink','NERO':'Black','ARGENTO':'Silver','BIANCO':'White','MAROON':'Maroon',
@@ -304,7 +314,7 @@ const FAMILY_RULES = [
   ['orchid','Purple'],['orange','Orange'],
   ['tiger camo','Multi'],['camo','Multi'],['camouflage','Multi'],
   ['leopard','Multi'],['zebra','Multi'],['floral','Multi'],
-  ['plaid','Multi'],['stripe','Multi'],['tie dye','Multi']
+  ['plaid','Multi'],['stripe','Multi'],['tie dye','Multi'],['multi','Multi']
 ];
 
 /* Semantic fashion/vendor vocabulary. Each entry has a canonical customer
@@ -439,7 +449,8 @@ const SENSE_MAP = [
   {terms:['floral'], name:'Floral', family:'Multi', score:96},
   {terms:['plaid'], name:'Plaid', family:'Multi', score:96},
   {terms:['stripe','striped'], name:'Stripe', family:'Multi', score:96},
-  {terms:['tie dye','tiedye'], name:'Tie Dye', family:'Multi', score:96}
+  {terms:['tie dye','tiedye'], name:'Tie Dye', family:'Multi', score:96},
+  {terms:['multi','multicolor','multicolour'], name:'Multi', family:'Multi', score:96}
 ];
 
 const MODIFIERS = {
@@ -515,7 +526,7 @@ function stripNoise(text, expandedLog){
       continue;
     }
 
-    // 3. Glued alphanumeric shortforms (e.g., BLK01 -> Black, BRAS01 -> Brass)
+    // 3. Glued alphanumeric shortforms (e.g., YLLW01 -> Yellow, BRWN2 -> Brown)
     const alphaMatch=upper.match(/^([A-Z]+)\d+$/) || upper.match(/^\d+([A-Z]+)$/);
     if(alphaMatch && COLOR_MAP[alphaMatch[1]]){
       if(expandedLog) expandedLog.push(`${upper} → ${COLOR_MAP[alphaMatch[1]]}`);
@@ -779,6 +790,7 @@ function runSingle(){
   $('explanation').innerHTML=`<strong>interpretation:</strong> ${escapeHtml(r.explanation)}${r.term?`<br><strong>matched:</strong> ${escapeHtml(r.term)}`:''}`;
   $('copyFacing').disabled=r.facing==='—';
   $('copyFamily').disabled=r.facing==='—';
+  $('copyBoth').disabled=r.facing==='—';
 }
 function escapeHtml(s){
   return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -787,6 +799,7 @@ function escapeHtml(s){
 $('lookupInput').addEventListener('input',runSingle);
 $('copyFacing').addEventListener('click',()=>copyText(lastSingle.facing,$('copyFacing')));
 $('copyFamily').addEventListener('click',()=>copyText(lastSingle.family,$('copyFamily')));
+$('copyBoth').addEventListener('click',()=>copyText(`${lastSingle.facing}\t${lastSingle.family}`,$('copyBoth')));
 
 function getBatchData(){
   return [...document.querySelectorAll('#batchBody tr')].map(tr=>{
@@ -812,17 +825,21 @@ function runBatch(){
   $('batchWrap').classList.toggle('hidden',lines.length===0);
   $('batchCopyFacing').disabled=!lines.length;
   $('batchCopyFamily').disabled=!lines.length;
+  $('batchCopyBoth').disabled=!lines.length;
 }
 $('runBatch').addEventListener('click',runBatch);
 $('clearBatch').addEventListener('click',()=>{
   $('batchInput').value='';$('batchBody').innerHTML='';$('batchWrap').classList.add('hidden');
-  $('batchCopyFacing').disabled=true;$('batchCopyFamily').disabled=true;
+  $('batchCopyFacing').disabled=true;$('batchCopyFamily').disabled=true;$('batchCopyBoth').disabled=true;
 });
 $('batchCopyFacing').addEventListener('click',()=>{
   const rows=getBatchData();copyText(rows.map(r=>r.facing).join('\n'),$('batchCopyFacing'));
 });
 $('batchCopyFamily').addEventListener('click',()=>{
   const rows=getBatchData();copyText(rows.map(r=>r.family).join('\n'),$('batchCopyFamily'));
+});
+$('batchCopyBoth').addEventListener('click',()=>{
+  const rows=getBatchData();copyText(rows.map(r=>`${r.facing}\t${r.family}`).join('\n'),$('batchCopyBoth'));
 });
 $('batchInput').addEventListener('keydown',e=>{
   if(e.ctrlKey && e.key==='Enter'){e.preventDefault();runBatch()}
